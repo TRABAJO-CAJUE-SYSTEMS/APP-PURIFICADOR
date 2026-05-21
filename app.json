@@ -16,14 +16,25 @@
       "enabled": false
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "La app usa Bluetooth para configurar el purificador de aire.",
+        "NSBluetoothPeripheralUsageDescription": "La app usa Bluetooth para configurar el purificador de aire."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.juamky.airpureapp"
+      "package": "com.juamky.airpureapp",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +43,17 @@
       "eas": {
         "projectId": "b4a8628e-40d1-4dad-97bf-156a8d42f636"
       }
-    }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "modes": ["peripheral", "central"]
+        }
+      ],
+      "expo-dev-client"
+    ]
   }
 }
