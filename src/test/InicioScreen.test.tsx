@@ -3,7 +3,7 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import InicioScreen from '../screens/InicioScreen';
 
-// Mocks globales
+// Mocks globales  para que la navegación no cause errores.
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
     navigate: jest.fn(),
@@ -12,7 +12,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('firebase/app');
-
+// simulamos una respuesta con datos reales (CO2, Alcohol, etc.).
 jest.mock('firebase/database', () => ({
   getDatabase: jest.fn(() => ({})),
   ref: jest.fn(),
@@ -48,10 +48,11 @@ jest.mock('react-native-chart-kit', () => ({
   StackedBarChart: () => null,
 }));
 
+//comprueba que renderize el componete con render
 describe('InicioScreen', () => {
   it('renderiza tarjetas de sensores con datos', async () => {
     const { getByText } = render(<InicioScreen />);
-    await waitFor(() => {
+    await waitFor(() => { //para esperar a que los datos aparezcan
       expect(getByText('Calidad de Aire (CO2)')).toBeTruthy();
       expect(getByText('Alcohol')).toBeTruthy();
       expect(getByText('Benceno')).toBeTruthy();

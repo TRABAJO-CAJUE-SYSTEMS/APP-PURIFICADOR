@@ -1,243 +1,237 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Animated, StatusBar, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App';
-import { auth } from '../firebaseConfig';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from 'firebase/auth';
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from '../firebaseConfig';
+import { C, R } from '../theme';
 
-const LoginScreen: React.FC = () => {
-  const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [surname, setSurname] = useState('');
+// Google OAuth client IDs — configura los tuyos en Google Cloud Console
+// https://console.cloud.google.com → APIs & Services → Credentials
+const GOOGLE_WEB_CLIENT_ID    = 'TU_WEB_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = 'TU_ANDROID_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID    = 'TU_IOS_CLIENT_ID.apps.googleusercontent.com';
+
+export default function LoginScreen() {
+  const [isLogin,      setIsLogin]      = useState(true);
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const [name,         setName]         = useState('');
+  const [showPass,     setShowPass]     = useState(false);
+  const [loading,      setLoading]      = useState(false);
+  const [googleLoading,setGoogleLoading]= useState(false);
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
-      return;
-    }
+  // Fade in al cargar
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide= useRef(new Animated.Value(40)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade,  { toValue: 1, duration: 800, delay: 100, useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 700, delay: 150, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
+  const handleSubmit = async () => {
+    if (!email || !password) return;
+    setLoading(true);
     try {
       if (isLogin) {
-        // 🔐 Iniciar sesión
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
         navigation.reset({ index: 0, routes: [{ name: 'BottomTabs' }] });
       } else {
-        // 🆕 Registro
-        await createUserWithEmailAndPassword(auth, email, password);
-        Alert.alert('¡Cuenta creada!', 'Ahora puedes iniciar sesión');
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
         setIsLogin(true);
+        alert('Cuenta creada. Inicia sesión.');
       }
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    }
+    } catch (e: any) {
+      const msgs: Record<string, string> = {
+        'auth/invalid-email': 'Correo inválido',
+        'auth/user-not-found': 'Sin cuenta con ese correo',
+        'auth/wrong-password': 'Contraseña incorrecta',
+        'auth/email-already-in-use': 'Correo ya registrado',
+        'auth/weak-password': 'Contraseña muy corta',
+        'INVALID_LOGIN_CREDENTIALS': 'Correo o contraseña incorrectos',
+      };
+      alert(msgs[e.code] ?? e.message ?? 'Error de autenticación');
+    } finally { setLoading(false); }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Ingresa tu correo para recuperar la contraseña');
-      return;
-    }
+  const handleForgot = async () => {
+    if (!email) { alert('Ingresa tu correo primero'); return; }
+    try { await sendPasswordResetEmail(auth, email.trim()); alert('Revisa tu correo.'); }
+    catch (e: any) { alert(e.message); }
+  };
 
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      Alert.alert('Éxito', 'Correo de recuperación enviado');
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
+      // Requiere: npx expo install expo-auth-session expo-web-browser
+      // Una vez instalados, descomenta el bloque siguiente y agrega tus client IDs arriba.
+      //
+      // const { makeRedirectUri, useAuthRequest } = require('expo-auth-session');
+      // const WebBrowser = require('expo-web-browser');
+      // WebBrowser.maybeCompleteAuthSession();
+      // const discovery = { authorizationEndpoint: 'https://accounts.google.com/o/oauth2/auth' };
+      // const [, response, promptAsync] = Google.useAuthRequest({ ... });
+      //
+      // Por ahora muestra instrucciones:
+      alert('Para activar Google Sign-In:\n\n1. Ejecuta: npx expo install expo-auth-session expo-web-browser\n2. Registra tu app en Google Cloud Console\n3. Agrega los Client IDs en LoginScreen.tsx\n\nMás info: docs.expo.dev/guides/google-authentication');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoIcon}>🌀</Text>
-        </View>
-        <Text style={styles.logoText}>AirPure</Text>
-        <Text style={styles.subtitle}>Monitoreo y purificación de calidad de aire</Text>
-      </View>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, isLogin && styles.activeTab]}
-          onPress={() => setIsLogin(true)}
-        >
-          <Text style={[styles.tabText, isLogin && styles.activeTabText]}>Iniciar Sesión</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, !isLogin && styles.activeTab]}
-          onPress={() => setIsLogin(false)}
-        >
-          <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>Registrarse</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Fondo decorativo */}
+      <View style={styles.orb1} />
+      <View style={styles.orb2} />
 
-      <View style={styles.formContainer}>
-        {!isLogin && (
-          <>
-            <TextInput
-              style={styles.inputFixed}
-              placeholder="Nombre"
-              placeholderTextColor="#000"
-              value={name}
-              onChangeText={setName}
-            />
-            <TextInput
-              style={styles.inputFixed}
-              placeholder="Apellido"
-              placeholderTextColor="#000"
-              value={surname}
-              onChangeText={setSurname}
-            />
-          </>
-        )}
-        <TextInput
-          style={styles.inputFixed}
-          placeholder="Correo electrónico"
-          placeholderTextColor="#000"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.inputFixed}
-          placeholder="Contraseña"
-          placeholderTextColor="#000"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
 
-        {isLogin && (
-          <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
-            <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
-        )}
+            {/* Logo */}
+            <View style={styles.logoBlock}>
+              <View style={styles.logoMark}>
+                <Text style={styles.logoLetter}>A</Text>
+              </View>
+              <Text style={styles.logoName}>AirMonitoring</Text>
+              <Text style={styles.logoSub}>Sistema IoT de Purificación Inteligente</Text>
+            </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>{isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}</Text>
-        </TouchableOpacity>
+            {/* Tabs */}
+            <View style={styles.tabs}>
+              {['Iniciar Sesión', 'Registrarse'].map((tab, i) => {
+                const active = (i === 0) === isLogin;
+                return (
+                  <TouchableOpacity key={tab} style={[styles.tab, active && styles.tabActive]}
+                    onPress={() => setIsLogin(i === 0)}>
+                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-        <View style={styles.divider}>
-          <Text style={styles.dividerText}>o continúa con</Text>
-        </View>
+            {/* Form */}
+            <View style={styles.form}>
+              {!isLogin && (
+                <View style={styles.inputWrap}>
+                  <Text style={styles.inputLabel}>NOMBRE</Text>
+                  <TextInput style={styles.input} value={name} onChangeText={setName}
+                    placeholder="Tu nombre" placeholderTextColor={C.textMuted} />
+                </View>
+              )}
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputLabel}>CORREO</Text>
+                <TextInput style={styles.input} value={email} onChangeText={setEmail}
+                  placeholder="correo@ejemplo.com" placeholderTextColor={C.textMuted}
+                  keyboardType="email-address" autoCapitalize="none" />
+              </View>
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputLabel}>CONTRASEÑA</Text>
+                <View style={{ position: 'relative' }}>
+                  <TextInput style={styles.input} value={password} onChangeText={setPassword}
+                    placeholder="••••••••" placeholderTextColor={C.textMuted}
+                    secureTextEntry={!showPass} />
+                  <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(!showPass)}>
+                    <Text style={styles.eyeText}>{showPass ? 'OCULTAR' : 'VER'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text>Google</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text>Facebook</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text>Apple</Text>
-          </TouchableOpacity>
-        </View>
+              {isLogin && (
+                <TouchableOpacity onPress={handleForgot} style={{ alignSelf: 'flex-end', marginBottom: 4 }}>
+                  <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+                </TouchableOpacity>
+              )}
 
-        <Text style={styles.footerText}>© 2025 AirPure. Todos los derechos reservados</Text>
-      </View>
-    </SafeAreaView>
+              <TouchableOpacity
+                style={[styles.submitBtn, (!email || !password || loading) && { opacity: 0.5 }]}
+                onPress={handleSubmit} disabled={!email || !password || loading}>
+                <Text style={styles.submitText}>{loading ? 'Cargando...' : isLogin ? 'Ingresar →' : 'Crear cuenta →'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Google Sign-In */}
+            <View style={styles.divider}>
+              <View style={styles.divLine} /><Text style={styles.divText}>o</Text><View style={styles.divLine} />
+            </View>
+            <TouchableOpacity
+              style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
+              onPress={handleGoogleLogin}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color={C.textPrimary} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.googleIcon}>G</Text>
+                  <Text style={styles.googleText}>Continuar con Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Mapa público */}
+            <View style={[styles.divider, { marginTop: 12 }]}>
+              <View style={styles.divLine} /><Text style={styles.divText}>o</Text><View style={styles.divLine} />
+            </View>
+            <TouchableOpacity style={styles.publicBtn} onPress={() => navigation.navigate('MapaPublico')}>
+              <Text style={styles.publicBtnText}>🗺  Ver mapa de calidad del aire sin cuenta</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.footer}>Universidad Franz Tamayo · Bolivia 2026</Text>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
-};
-
-export default LoginScreen;
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#007F7A' },
-  logoContainer: { alignItems: 'center', marginTop: 40 },
-  logoCircle: {
-    backgroundColor: '#ffffff',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoIcon: { fontSize: 30 },
-  logoText: { color: '#ffffff', fontSize: 28, fontWeight: 'bold', marginTop: 10 },
-  subtitle: { color: '#ffffff', fontSize: 14, marginTop: 4 },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#e0f2f1',
-    marginHorizontal: 20,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  tab: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: '#ffffff',
-  },
-  tabText: { color: '#007F7A', fontWeight: 'bold' },
-  activeTabText: { color: '#007F7A' },
-  formContainer: {
-    backgroundColor: '#ffffff',
-    margin: 25,
-    borderRadius: 12,
-    padding: 20,
-    marginTop: 10,
-  },
-  inputFixed: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginTop: 16,
-    marginBottom: 12,
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '400',
-    borderWidth: 1,
-    borderColor: '#bbb',
-    height: 60,
-    width: '100%',
-  },
-  forgotPassword: { alignItems: 'flex-end', marginTop: 8 },
-  forgotPasswordText: { color: '#007F7A', fontSize: 13 },
-  button: {
-    backgroundColor: '#007F7A',
-    padding: 14,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  buttonText: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
-  divider: { alignItems: 'center', marginVertical: 15 },
-  dividerText: { color: '#999', fontSize: 13 },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-  },
-  socialButton: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  footerText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 12,
-    color: '#999',
-  },
+  screen:       { flex: 1, backgroundColor: C.bg },
+  scroll:       { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  // Orbs de fondo
+  orb1:         { position: 'absolute', width: 300, height: 300, borderRadius: 150, backgroundColor: C.teal + '08', top: -80, right: -80 },
+  orb2:         { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: C.co2 + '06', bottom: 100, left: -60 },
+  // Logo
+  logoBlock:    { alignItems: 'center', marginBottom: 36, marginTop: 20 },
+  logoMark:     { width: 60, height: 60, borderRadius: 18, backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealBorder, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  logoLetter:   { color: C.teal, fontSize: 32, fontWeight: '900' },
+  logoName:     { color: C.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  logoSub:      { color: C.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  // Tabs
+  tabs:         { flexDirection: 'row', backgroundColor: C.bgCard, borderRadius: R.sm, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: C.border },
+  tab:          { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  tabActive:    { backgroundColor: C.bgElevated },
+  tabText:      { color: C.textMuted, fontWeight: '700', fontSize: 13 },
+  tabTextActive:{ color: C.textPrimary },
+  // Form
+  form:         { backgroundColor: C.bgCard, borderRadius: R.xl, padding: 20, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+  inputWrap:    { marginBottom: 14 },
+  inputLabel:   { color: C.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 7 },
+  input:        { backgroundColor: C.bgInput, borderRadius: R.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: C.textPrimary, borderWidth: 1, borderColor: C.border },
+  eyeBtn:       { position: 'absolute', right: 12, top: 14 },
+  eyeText:      { color: C.textMuted, fontSize: 10, fontWeight: '800' },
+  forgotText:   { color: C.teal, fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  submitBtn:    { backgroundColor: C.teal, borderRadius: R.md, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
+  submitText:   { color: C.bg, fontWeight: '900', fontSize: 15, letterSpacing: 0.3 },
+  // Divider
+  divider:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  divLine:      { flex: 1, height: 1, backgroundColor: C.border },
+  divText:      { color: C.textMuted, fontSize: 12 },
+  // Google
+  googleBtn:    { backgroundColor: '#ffffff10', borderRadius: R.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: '#ffffff25', marginBottom: 4 },
+  googleIcon:   { color: '#EA4335', fontSize: 18, fontWeight: '900', width: 22, textAlign: 'center' },
+  googleText:   { color: C.textPrimary, fontSize: 14, fontWeight: '700' },
+  // Público
+  publicBtn:    { backgroundColor: C.bgCard, borderRadius: R.md, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginBottom: 24 },
+  publicBtnText:{ color: C.textSecondary, fontSize: 13, fontWeight: '600' },
+  footer:       { textAlign: 'center', color: C.textMuted, fontSize: 11 },
 });

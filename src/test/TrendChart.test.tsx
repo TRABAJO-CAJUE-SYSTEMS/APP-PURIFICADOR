@@ -2,6 +2,8 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import TrendChart from '../components/TrendChart';
 
+// Se renderiza correctamente con datos, muestra un gráfico (mockeado), se comporta bien incluso si no tiene datos.
+
 describe('TrendChart', () => {
   it('renderiza correctamente con datos', () => {
     const data = {
@@ -18,7 +20,7 @@ describe('TrendChart', () => {
     const { getByText, getByTestId, toJSON } = render(<TrendChart trendData={data} />);
     expect(getByText('Tendencia de Sensores')).toBeTruthy();
     expect(getByTestId('mock-chart')).toBeTruthy(); // Usamos el testID del mock
-    expect(toJSON()).toMatchSnapshot();
+    expect(toJSON()).toMatchSnapshot(); //para guardar y comparar la estructura del componente.
   });
 
   it('muestra el gráfico aunque los datos estén vacíos', () => {
@@ -34,6 +36,6 @@ describe('TrendChart', () => {
     };
 
     const { getByTestId } = render(<TrendChart trendData={emptyData} />);
-    expect(getByTestId('mock-chart')).toBeTruthy(); // sigue siendo el mock
+    expect(getByTestId('mock-chart')).toBeTruthy(); // sigue siendo el mock osea para verificar que el componente del gráfico está ahí.
   });
 });
